@@ -5675,7 +5675,7 @@ function simReset() {
           <div class="dg-drop-t">Envie a foto do seu carro</div>
           <div class="dg-drop-s">Clique ou arraste — qualquer ângulo funciona</div>
           <div class="dg-drop-btn">Selecionar foto</div>
-          <div class="dg-drop-fmt">JPG · PNG · HEIC · até 20MB</div>
+          <div class="dg-drop-fmt">JPG · PNG · HEIC — qualquer tamanho</div>
         </div>
         <div id="dg-prev" class="dg-prev">
           <img id="dg-prev-img" src="" alt="">
@@ -5755,25 +5755,73 @@ function simReset() {
     dz.addEventListener('drop', e=>{
       e.preventDefault(); dz.classList.remove('drag');
       const f=e.dataTransfer.files[0];
-      if(f&&f.type.startsWith('image/')) loadImg(f);
+      if(f) loadImg(f);
     });
   }
 
+  function _applyImg(dataUrl){
+    const m = dataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+    if(!m){ _showImgErr('Formato não suportado. Use JPG ou PNG.'); return; }
+    _type = 'image/jpeg'; _b64 = m[2];
+    S('dg-prev-img').src = dataUrl;
+    if(dz) dz.style.display='none';
+    S('dg-prev').style.display='block';
+    S('dg-analyze').disabled=false;
+    const err=S('dg-err');
+    if(err){ err.textContent=''; err.classList.remove('show'); }
+  }
+  function _showImgErr(msg){
+    if(dz) dz.style.display='block';
+    if(S('dg-prev')) S('dg-prev').style.display='none';
+    const err=S('dg-err');
+    if(err){ err.textContent=msg; err.classList.add('show'); }
+  }
   function loadImg(f){
-    const r=new FileReader();
-    r.onload=ev=>{
-      const src=ev.target.result;
-      const m=src.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-      if(!m) return;
-      _type=m[1]; _b64=m[2];
-      S('dg-prev-img').src=src;
-      if(dz) dz.style.display='none';
-      S('dg-prev').style.display='block';
-      S('dg-analyze').disabled=false;
-      const err=S('dg-err');
-      if(err){ err.textContent=''; err.classList.remove('show'); }
+    /* Comprime via Canvas (iPhone 15 Pro: ~15MB → ~800KB a 1920px JPEG 82%).
+       Fallback para FileReader se o browser não decodificar o formato. */
+    const img = new Image();
+    const url = URL.createObjectURL(f);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX = 1920;
+      let w = img.width, h = img.height;
+      if(w === 0 || h === 0){ _showImgErr('Imagem inválida ou corrompida.'); return; }
+      if(w > MAX || h > MAX){
+        if(w >= h){ h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      _applyImg(canvas.toDataURL('image/jpeg', 0.82));
     };
-    r.readAsDataURL(f);
+    img.onerror = () => {
+      /* Fallback: FileReader para formatos que o browser não abre como <img>
+         (ex: HEIC no Chrome). Nota: sem compressão neste caminho. */
+      URL.revokeObjectURL(url);
+      const r = new FileReader();
+      r.onload = ev => {
+        const src = ev.target.result;
+        /* Tenta extrair base64 e verificar tamanho */
+        const m2 = src.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+        if(!m2){ _showImgErr('Formato não suportado. Use JPG ou PNG.'); return; }
+        const sizeBytes = Math.round(m2[2].length * 0.75);
+        if(sizeBytes > 4.5 * 1024 * 1024){
+          _showImgErr('Imagem muito grande para este formato. Converta para JPG e tente novamente.');
+          return;
+        }
+        _type = m2[1]; _b64 = m2[2];
+        S('dg-prev-img').src = src;
+        if(dz) dz.style.display='none';
+        S('dg-prev').style.display='block';
+        S('dg-analyze').disabled=false;
+        const err=S('dg-err');
+        if(err){ err.textContent=''; err.classList.remove('show'); }
+      };
+      r.onerror = () => _showImgErr('Não foi possível carregar a imagem. Tente JPG ou PNG.');
+      r.readAsDataURL(f);
+    };
+    img.src = url;
   }
 
   window.dgReset=function(){
@@ -5834,7 +5882,7 @@ Analise riscos, brilho, oxidação, limpeza. Sem texto extra.`;
         },
         body:JSON.stringify({
           model:'claude-haiku-4-5-20251001',
-          max_tokens:300,
+          max_tokens:450,
           system: prompt_sys,
           messages:[{
             role:'user',
@@ -5857,9 +5905,13 @@ Analise riscos, brilho, oxidação, limpeza. Sem texto extra.`;
       if(tags[4]) S(tags[4])?.classList.add('on');
       await new Promise(r=>setTimeout(r,600));
 
-      let txt = data.content[0].text.trim();
-      txt = txt.replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
-      const rec = JSON.parse(txt);
+      const raw = data.content?.[0]?.text;
+      if(!raw) throw new Error('Resposta vazia da IA. Tente novamente.');
+      let txt = raw.trim().replace(/^```json\s*/,'').replace(/\s*```$/,'').replace(/^```\s*/,'');
+      let rec;
+      try { rec = JSON.parse(txt); }
+      catch(e){ throw new Error('A IA retornou formato inesperado. Tente outra foto.'); }
+      if(!rec.service) throw new Error('Diagnóstico incompleto. Tente uma foto mais clara do carro.');
       dgShowResult(rec);
 
     }catch(err){
@@ -5870,7 +5922,7 @@ Analise riscos, brilho, oxidação, limpeza. Sem texto extra.`;
       if(S('dg-analyze')) S('dg-analyze').disabled=false;
       const errEl=S('dg-err');
       if(errEl){
-        errEl.textContent='Erro: '+err.message;
+        errEl.textContent=err.message;
         errEl.classList.add('show');
       }
     }
@@ -7062,8 +7114,8 @@ Analise riscos, brilho, oxidação, limpeza. Sem texto extra.`;
         <li><a href="https://maps.app.goo.gl/iFRij8ZKHkto1jUa9" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Loja 02 — Núcleo Bandeirantes (Detail)</a></li>
         <li><a href="tel:+5561993932656"><svg viewBox="0 0 24 24"><path d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>(61) 99393-2656</a></li>
         <li><a href="https://wa.me/5561993932656"><svg viewBox="0 0 24 24"><path d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>WhatsApp</a></li>
-        <li><a href="#"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37zM17.5 6.5h.01"/></svg>@premiumpeliculas</a></li>
-        <li><a href="#"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Seg–Sáb: 8h às 18h</a></li>
+        <li><a href="https://www.instagram.com/premiumpeliculas" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M16 11.37A4 4 0 1112.63 8 4 4 0 0116 11.37zM17.5 6.5h.01"/></svg>@premiumpeliculas</a></li>
+        <li><span style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--white60)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Seg–Sáb: 8h às 18h</span></li>
       </ul>
     </div>
   </div>
