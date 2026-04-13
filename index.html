@@ -4892,7 +4892,7 @@ input[type="tel"], input[type="number"], select, textarea {
 
 
 
-/* ── Mobile: desativa cursor personalizado em dispositivos touch ── */
+/* ── Mobile: desativa cursor e efeitos pesados em dispositivos touch ── */
 @media (hover: none), (pointer: coarse) {
   #cur-dot, #cur-ring { display: none !important; }
   body, button, a, input, label, select, textarea,
@@ -4905,6 +4905,15 @@ input[type="tel"], input[type="number"], select, textarea {
   .dg-analyze, .sim-btn, .modal-close, .gallery-arrow {
     cursor: pointer !important;
   }
+
+  /* ── Reduz efeitos visuais pesados no hero (mobile) ── */
+  .h-badge-dot { animation: none !important; box-shadow: 0 0 0 2px rgba(244,123,32,.5) !important; }
+  #hero::before { display: none !important; }
+  .bg-logo-mark { animation: none !important; transform: none !important; }
+  .ppf-chip-dot { animation: none !important; }
+  .brand-logo-ring::before { animation: none !important; }
+  .brand-logo-ring img { animation: none !important; }
+  .h-badge, .h-h1, .h-sub, .h-btns { animation-duration: 0.35s !important; animation-delay: 0s !important; }
 }
 
 /* ── UNIDADES ── */
@@ -7334,6 +7343,12 @@ window.addEventListener('load',()=>{
   document.addEventListener('mouseleave',function(){
     MOUSE.x=-999;MOUSE.y=-999;
   });
+
+  // Mobile: reduz partículas para economizar CPU/bateria
+  if (window.matchMedia('(hover: none), (pointer: coarse)').matches) {
+    COUNT = 20;
+    CONNECT_DIST = 60;
+  }
 
   // Init
   resize();
