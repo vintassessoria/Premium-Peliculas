@@ -5819,10 +5819,10 @@ function simReset() {
       },delay);
     });
 
-    const prompt_sys=`Você é especialista técnico em estética automotiva da Premium Películas. Analise a foto e retorne SOMENTE JSON válido, sem markdown. Estrutura exata:
-{"findings":["achado1","achado2","achado3"],"service":"Nome do Serviço","desc":"2 frases sobre o benefício","price":"R$ X – R$ Y","benefits":["b1","b2","b3","b4"],"waMsg":"nome curto do serviço"}
-Serviços e faixas de preço disponíveis: Limpeza Nível I (R$140–280), Polimento Comercial (R$650–1.000), Polimento Técnico + Vitrificação (R$969–1.849), PPF Parcial (R$4.900–7.500), PPF Full Body (R$7.500–12.900), Envelopamento (R$2.200–3.800), Higienização Completa (R$220–879), Insulfilm Cerâmico (R$350–450).
-Analise cor, brilho, riscos, oxidação, limpeza, sujeira, amassados, estado geral. Seja técnico e específico com o que você vê na imagem. Retorne APENAS o JSON, sem nenhum texto extra.`;
+    const prompt_sys=`Especialista Premium Películas. Retorne APENAS JSON válido:
+{"findings":["f1","f2","f3"],"service":"Serviço","desc":"Benefício em 2 frases.","price":"R$ X–Y","benefits":["b1","b2","b3","b4"],"waMsg":"serviço"}
+Serviços: Limpeza Nível I (R$140–280), Polimento Comercial (R$650–1.000), Polimento Técnico+Vitrificação (R$969–1.849), PPF Parcial (R$4.900–7.500), PPF Full Body (R$7.500–12.900), Higienização Completa (R$220–879), Insulfilm Cerâmico (R$350–450).
+Analise riscos, brilho, oxidação, limpeza. Sem texto extra.`;
 
     try{
       // Cloudflare Worker — chave protegida no servidor, nunca exposta no HTML
@@ -5833,14 +5833,14 @@ Analise cor, brilho, riscos, oxidação, limpeza, sujeira, amassados, estado ger
           'Content-Type':'application/json'
         },
         body:JSON.stringify({
-          model:'claude-sonnet-4-6',
-          max_tokens:900,
+          model:'claude-haiku-4-5-20251001',
+          max_tokens:300,
           system: prompt_sys,
           messages:[{
             role:'user',
             content:[
               {type:'image',source:{type:'base64',media_type:_type,data:_b64}},
-              {type:'text',text:'Analise esta foto do carro e retorne o JSON de diagnóstico.'}
+              {type:'text',text:'Diagnóstico JSON desta foto.'}
             ]
           }]
         })
